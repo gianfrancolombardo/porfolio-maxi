@@ -1,6 +1,91 @@
-import { motion, useScroll, useTransform } from 'motion/react';
+import { motion, useScroll, useTransform, useMotionValue, useSpring } from 'motion/react';
 import { ArrowRight, BookOpen, Mail, PenTool } from 'lucide-react';
-import { useRef } from 'react';
+import { useRef, useEffect } from 'react';
+
+const PARTICLES = Array.from({ length: 70 }).map((_, i) => {
+  const depthLevel = Math.random();
+  const depth = depthLevel > 0.8 ? 1.5 : depthLevel > 0.4 ? 1.0 : 0.5; // Parallax layers
+  return {
+    id: i,
+    layer: depth,
+    left: Math.random() * 100, // vw
+    top: Math.random() * -20, // vh
+    size: Math.random() * (depth * 3) + 2, // Slightly larger particles
+    opacity: Math.random() * 0.6 + 0.3, // Higher opacity
+    duration: Math.random() * 20 + 15, // Slightly faster fall time
+    delay: Math.random() * -45, // pre-warm the animation
+    drift: Math.random() * 40 - 20, // vw horizontal drift
+    isBone: Math.random() > 0.85, // Color distribution
+  };
+});
+
+function AshParticles() {
+  const mouseX = useMotionValue(0);
+  const mouseY = useMotionValue(0);
+  const smoothMouseX = useSpring(mouseX, { damping: 50, stiffness: 400 });
+  const smoothMouseY = useSpring(mouseY, { damping: 50, stiffness: 400 });
+
+  useEffect(() => {
+    const handleMouseMove = (e: MouseEvent) => {
+      // Normalize to -1 -> 1
+      const x = (e.clientX / window.innerWidth) * 2 - 1;
+      const y = (e.clientY / window.innerHeight) * 2 - 1;
+      mouseX.set(x);
+      mouseY.set(y);
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    return () => window.removeEventListener('mousemove', handleMouseMove);
+  }, [mouseX, mouseY]);
+
+  return (
+    <div className="absolute inset-0 z-10 pointer-events-none overflow-hidden mix-blend-screen">
+      {/* Subtle background glow to replace some of the lost fog depth */}
+      <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[80vw] h-[80vw] bg-concrete/5 rounded-full blur-[100px] pointer-events-none" />
+
+      {[0.5, 1.0, 1.5].map((depth) => {
+        // Closer layers move more (parallax)
+        const xOffset = useTransform(smoothMouseX, [-1, 1], [-20 * depth, 20 * depth]);
+        const yOffset = useTransform(smoothMouseY, [-1, 1], [-20 * depth, 20 * depth]);
+
+        return (
+          <motion.div
+            key={depth}
+            style={{ x: xOffset, y: yOffset }}
+            className="absolute inset-0"
+          >
+            {PARTICLES.filter(p => p.layer === depth).map((p) => (
+              <motion.div
+                key={p.id}
+                initial={{
+                  x: `${p.left}vw`,
+                  y: `${p.top}vh`,
+                }}
+                animate={{
+                  y: [`${p.top}vh`, '120vh'], // Fall through screen
+                  x: [`${p.left}vw`, `calc(${p.left}vw + ${p.drift}vw)`], // Sway sideways
+                  opacity: [0, p.opacity, p.opacity, 0], // Fade in/out
+                }}
+                transition={{
+                  duration: p.duration,
+                  repeat: Infinity,
+                  ease: "linear",
+                  delay: p.delay, // Start at different times
+                }}
+                className={`absolute rounded-full shadow-sm ${p.isBone ? 'bg-bone' : 'bg-concrete'}`}
+                style={{
+                  width: p.size,
+                  height: p.size,
+                  filter: `blur(${depth > 1 ? '1px' : '0.5px'})`
+                }}
+              />
+            ))}
+          </motion.div>
+        );
+      })}
+    </div>
+  );
+}
 
 export default function App() {
   const { scrollYProgress } = useScroll();
@@ -16,14 +101,14 @@ export default function App() {
   return (
     <div className="min-h-screen bg-onyx selection:bg-rust selection:text-bone">
       {/* Progress Bar */}
-      <motion.div 
+      <motion.div
         className="fixed top-0 left-0 right-0 h-1 bg-rust origin-left z-50"
         style={{ scaleX: scrollYProgress }}
       />
 
       {/* Navigation (Minimalist) */}
       <nav className="fixed top-0 w-full p-6 md:p-10 flex justify-between items-center z-50 text-bone mix-blend-difference">
-        <motion.div 
+        <motion.div
           whileHover={{ scale: 1.05 }}
           whileTap={{ scale: 0.95 }}
           className="font-display text-2xl tracking-wider cursor-pointer"
@@ -32,9 +117,9 @@ export default function App() {
         </motion.div>
         <div className="flex gap-6 font-display text-sm tracking-widest uppercase">
           {['Manifiesto', 'Obras', 'Contacto'].map((item) => (
-            <motion.a 
+            <motion.a
               key={item}
-              href={`#${item.toLowerCase()}`} 
+              href={`#${item.toLowerCase()}`}
               whileHover={{ y: -2, color: 'var(--color-rust)' }}
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
               className="transition-colors"
@@ -47,75 +132,41 @@ export default function App() {
 
       {/* Hero Section */}
       <section ref={heroRef} className="relative h-screen flex flex-col justify-end pb-12 pt-32 px-6 md:px-16 overflow-hidden bg-onyx">
-        <motion.div 
+        <motion.div
           style={{ y, opacity }}
           className="absolute inset-0 z-0 overflow-hidden bg-onyx"
         >
           {/* Base dark background */}
           <div className="absolute inset-0 bg-onyx z-0" />
-          
-          {/* Cinematic Fog / Smoke (Niebla de Asfalto) */}
-          <div className="absolute inset-0 z-10 pointer-events-none opacity-40 mix-blend-screen">
-            {/* Fog Blob 1 - Concrete Gray */}
-            <motion.div 
-              animate={{ 
-                x: ['-20%', '20%', '-10%', '-20%'],
-                y: ['-10%', '10%', '20%', '-10%'],
-                scale: [1, 1.2, 0.9, 1],
-                opacity: [0.3, 0.5, 0.3]
-              }}
-              transition={{ duration: 25, repeat: Infinity, ease: "easeInOut" }}
-              className="absolute top-0 left-0 w-[80vw] h-[80vw] bg-concrete/20 rounded-full blur-[120px]"
-            />
-            
-            {/* Fog Blob 2 - Rust Red (Subtle) */}
-            <motion.div 
-              animate={{ 
-                x: ['10%', '-30%', '10%'],
-                y: ['20%', '-10%', '20%'],
-                scale: [0.8, 1.1, 0.8],
-                opacity: [0.15, 0.3, 0.15]
-              }}
-              transition={{ duration: 35, repeat: Infinity, ease: "easeInOut", delay: 5 }}
-              className="absolute bottom-0 right-0 w-[90vw] h-[90vw] bg-rust/15 rounded-full blur-[150px]"
-            />
 
-            {/* Fog Blob 3 - Deep Shadow */}
-            <motion.div 
-              animate={{ 
-                x: ['0%', '30%', '-20%', '0%'],
-                y: ['0%', '-20%', '10%', '0%'],
-              }}
-              transition={{ duration: 40, repeat: Infinity, ease: "easeInOut", delay: 10 }}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[100vw] h-[100vw] bg-onyx/80 rounded-full blur-[100px] mix-blend-multiply"
-            />
-          </div>
+          {/* Ash / Dust Particles (Cenizas del Asfalto) */}
+          <AshParticles />
 
           {/* Film grain for Noir texture */}
-          <div 
-            className="absolute inset-0 opacity-[0.2] pointer-events-none mix-blend-overlay z-20" 
+          <div
+            className="absolute inset-0 opacity-[0.2] pointer-events-none mix-blend-overlay z-20"
             style={{ backgroundImage: `url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.75' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E")` }}
           />
-          
+
           {/* Heavy Vignette to focus on text and ground the fog */}
           <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_center,transparent_0%,#0A0A0A_90%)] pointer-events-none opacity-95 z-30" />
         </motion.div>
 
-        <motion.div 
+        <motion.div
           initial={{ opacity: 0, y: 50 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 1.2, ease: [0.16, 1, 0.3, 1] }}
-          className="relative z-10 mt-auto"
+          className="relative z-10 mt-auto pt-24" /* Added top padding to push it down from header */
         >
-          <motion.p 
+          <motion.p
             initial={{ opacity: 0, x: -20 }}
             animate={{ opacity: 1, x: 0 }}
             transition={{ delay: 0.5, duration: 0.8, ease: "easeOut" }}
-            className="font-body italic text-bone/90 text-lg md:text-2xl mb-4 md:mb-8 max-w-2xl drop-shadow-md"
+            className="font-body italic text-bone/90 text-[1.1rem] md:text-2xl mb-4 md:mb-8 max-w-2xl drop-shadow-md"
           >
             El arquitecto del noir transatlántico. Crónica implacable del asfalto y la frontera.
           </motion.p>
-          <h1 className="font-display text-[13vw] leading-[0.85] tracking-tight uppercase text-bone drop-shadow-lg">
+          <h1 className="font-display text-[12vw] leading-[0.85] tracking-tight uppercase text-bone drop-shadow-lg">
             Maximiliano
             <br />
             <span className="text-transparent" style={{ WebkitTextStroke: '2px var(--color-bone)' }}>Rodríguez</span>
@@ -128,7 +179,7 @@ export default function App() {
       {/* Elevator Pitch / Quote */}
       <section className="bg-bone text-onyx py-32 md:py-48 px-6 md:px-16">
         <div className="max-w-5xl mx-auto">
-          <motion.h2 
+          <motion.h2
             initial={{ opacity: 0, y: 30 }}
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, margin: "-100px" }}
@@ -137,7 +188,7 @@ export default function App() {
           >
             "Escribo novela negra porque es la única forma honesta de contar lo que pasa cuando se apagan las luces de las grandes capitales. Mis libros son puentes de papel entre las calles de Sudamérica y las periferias de Europa."
           </motion.h2>
-          <motion.div 
+          <motion.div
             initial={{ opacity: 0 }}
             whileInView={{ opacity: 1 }}
             viewport={{ once: true }}
@@ -178,7 +229,7 @@ export default function App() {
                 desc: "Un respeto sagrado por el tiempo del lector. Tramas afiladas como navajas, sin grasa, donde cada página empuja irremediablemente a la siguiente."
               }
             ].map((item, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 initial={{ opacity: 0, y: 40 }}
                 whileInView={{ opacity: 1, y: 0 }}
@@ -187,7 +238,7 @@ export default function App() {
                 whileHover={{ y: -10 }}
                 className="group cursor-default"
               >
-                <motion.div 
+                <motion.div
                   className="font-display text-7xl text-white/10 group-hover:text-rust transition-colors duration-500 mb-6 inline-block"
                   whileHover={{ scale: 1.1, rotate: -2 }}
                   transition={{ type: "spring", stiffness: 300, damping: 15 }}
@@ -209,7 +260,7 @@ export default function App() {
         <div className="max-w-7xl mx-auto px-6 md:px-16">
           <div className="flex flex-col md:flex-row justify-between items-end mb-20">
             <h2 className="font-display text-6xl md:text-8xl uppercase leading-none">
-              Crónicas<br/>del <span className="text-rust">Asfalto</span>
+              Crónicas<br />del <span className="text-rust">Asfalto</span>
             </h2>
             <p className="font-body text-concrete italic max-w-sm mt-8 md:mt-0 text-lg">
               Historias de ritmo frenético donde los protagonistas no son héroes, sino sobrevivientes.
@@ -222,7 +273,7 @@ export default function App() {
               { title: "Cicatrices de Hormigón", year: "2021", type: "Thriller Urbano" },
               { title: "La Frontera Invisible", year: "2019", type: "Relatos" }
             ].map((book, i) => (
-              <motion.div 
+              <motion.div
                 key={i}
                 initial={{ opacity: 0, x: -20 }}
                 whileInView={{ opacity: 1, x: 0 }}
@@ -237,7 +288,7 @@ export default function App() {
                 </div>
                 <div className="flex items-center gap-6 mt-6 md:mt-0">
                   <span className="font-display tracking-widest uppercase text-sm opacity-60">{book.type}</span>
-                  <motion.div 
+                  <motion.div
                     whileHover={{ scale: 1.1 }}
                     whileTap={{ scale: 0.9 }}
                     className="w-12 h-12 rounded-full border border-current flex items-center justify-center group-hover:bg-rust group-hover:border-rust transition-colors"
@@ -256,7 +307,7 @@ export default function App() {
         <div className="absolute top-0 right-0 w-1/2 h-full opacity-10 pointer-events-none">
           <div className="w-full h-full bg-[radial-gradient(circle_at_center,var(--color-rust)_0%,transparent_70%)] blur-3xl" />
         </div>
-        
+
         <div className="max-w-4xl mx-auto text-center relative z-10">
           <motion.div
             initial={{ scale: 0 }}
@@ -266,37 +317,37 @@ export default function App() {
           >
             <PenTool className="w-12 h-12 text-rust mx-auto mb-8" />
           </motion.div>
-          
+
           <h2 className="font-display text-5xl md:text-7xl text-bone uppercase mb-6">Contacto</h2>
           <p className="font-body text-concrete text-xl md:text-2xl italic mb-12">
             Para entrevistas, derechos de publicación o conferencias. El asfalto siempre tiene una historia más que contar.
           </p>
-          
+
           <form className="flex flex-col gap-8 max-w-2xl mx-auto text-left" onSubmit={(e) => e.preventDefault()}>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
               <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
-                <input 
-                  type="text" 
-                  placeholder="Nombre" 
+                <input
+                  type="text"
+                  placeholder="Nombre"
                   className="w-full bg-transparent border-b border-concrete/50 px-0 py-4 text-bone font-body focus:outline-none focus:border-rust transition-colors placeholder:text-concrete/50"
                 />
               </motion.div>
               <motion.div whileFocus={{ scale: 1.02 }} transition={{ type: "spring", stiffness: 300 }}>
-                <input 
-                  type="email" 
-                  placeholder="Correo electrónico" 
+                <input
+                  type="email"
+                  placeholder="Correo electrónico"
                   className="w-full bg-transparent border-b border-concrete/50 px-0 py-4 text-bone font-body focus:outline-none focus:border-rust transition-colors placeholder:text-concrete/50"
                 />
               </motion.div>
             </div>
             <motion.div whileFocus={{ scale: 1.01 }} transition={{ type: "spring", stiffness: 300 }}>
-              <textarea 
-                placeholder="Mensaje..." 
+              <textarea
+                placeholder="Mensaje..."
                 rows={4}
                 className="w-full bg-transparent border-b border-concrete/50 px-0 py-4 text-bone font-body focus:outline-none focus:border-rust transition-colors placeholder:text-concrete/50 resize-none"
               />
             </motion.div>
-            <motion.button 
+            <motion.button
               whileHover={{ scale: 1.02, backgroundColor: "var(--color-bone)", color: "var(--color-onyx)" }}
               whileTap={{ scale: 0.98 }}
               transition={{ type: "spring", stiffness: 400, damping: 17 }}
