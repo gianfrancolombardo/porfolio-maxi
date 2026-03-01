@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --font-display: "Anton", sans-serif;
+  --font-body: "Lora", serif;
+  
+  --color-onyx: #0A0A0A;
+  --color-bone: #F4F3EE;
+  --color-concrete: #737373;
+  --color-rust: #9B2C2C;
+}
+
+@layer base {
+  body {
+    @apply bg-onyx text-bone font-body antialiased selection:bg-rust selection:text-bone;
+  }
+  
+  /* Custom scrollbar for a premium feel */
+  ::-webkit-scrollbar {
+    width: 8px;
+  }
+  ::-webkit-scrollbar-track {
+    @apply bg-onyx;
+  }
+  ::-webkit-scrollbar-thumb {
+    @apply bg-concrete/50 hover:bg-rust transition-colors;
+  }
+}
